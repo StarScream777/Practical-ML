@@ -1,0 +1,125 @@
+---
+title: 'Peer-graded Assignment: Prediction Assignment Writeup'
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+## Data preprocessing
+
+### Loading data
+
+First we will download both the training and testing datasets as follows:
+
+```{r, eval=FALSE}
+train_url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(train_url, destfile="training_data.csv")
+download.file(test_url, destfile="testing_data.csv")
+```
+
+Once downloaded, the data can be loaded into the training and testing variables
+
+```{r}
+training <- read.csv("training_data.csv", na.strings = c("NA", "#DIV/0!", ""))
+testing <- read.csv("testing_data.csv", na.strings = c("NA", "#DIV/0!", ""))
+```
+
+### Cleaning data
+
+Now we will remove those columns that contain null values
+
+```{r}
+training <- training[, which(colSums(is.na(training)) == 0)] 
+testing <- testing[, which(colSums(is.na(testing)) == 0)]
+```
+
+And we will remove the first 7 columns since they have no relationship with the column "classe"
+
+```{r}
+training <- training[, -c(1:7)] 
+testing <- testing[, -c(1:7)]
+```
+
+
+### Data partitioning 
+
+First we will load the caret package
+
+```{r}
+library(caret)
+```
+
+Now we will partition the training data into training and validation datasets with 70% for training and the remaining 30% for validation dataset
+
+```{r}
+set.seed(420)
+training = data.frame(training)
+inTrain <- createDataPartition(training$classe, p = 0.70, list = F)
+train <- training[inTrain, ]
+validation <- training[-inTrain, ]
+```
+
+
+## Building models
+
+### Regression trees
+
+We will first build the model using regression trees and then make predictions on the validation dataset based on the model that we created. The confusion matrix is printed below:
+
+```{r}
+mod1 <- train(classe ~ ., method = "rpart", data = train)
+val1 <- predict(mod1, validation)
+confusionMatrix(validation$classe, val1)
+```
+
+As we can see under the overall statistics, the accuracy is only 49.5%. We can also see in the prediction matrix that the model was not able to predict very precisely specially for the class D where it couldn't fit any value in that class.
+
+
+### Random forests
+
+```{r, cache=TRUE}
+mod2 <- train(classe ~ ., method = "rf", data = train, prox = TRUE, ntree = 250)
+val2 <- predict(mod2, validation)
+confusionMatrix(validation$classe, val2)
+```
+
+This model took a very long time to complete the training process as compared to other models. But then, its accuracy is also much better as compared to other models.
+From the prediction table, it is clear that it was able to predict most of the values in their respective classes with only a few exceptions. The accuracy of this model is 99.3%.
+
+
+### Linear Discriminant Analysis
+
+```{r}
+mod3 <- train(classe ~ ., method = "lda", data = train)
+val3 <- predict(mod3, validation)
+confusionMatrix(validation$classe, val3)
+```
+
+This model had an accuracy of around 71%. It was better than the regression tree model but was not as good as random forest. Although it was much faster as compared to random forests.
+
+
+From all the models built above the random forest was the best one and had highest accuracy in cross validation. Therefore, we will use the random forest model for predicting test samples.
+
+
+## Prediction
+
+Using the random forest model
+
+```{r}
+prediction <- predict(mod2, newdata = testing)
+prediction
+```
+
+
+## Appendix
+
+Using the rattle package we can make beautiful trees
+
+```{r}
+library(rattle)
+fancyRpartPlot(mod1$finalModel)
+```
